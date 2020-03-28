@@ -5,21 +5,20 @@ import { Modal, UIReducerActions, StaticLayers } from "../../../enum";
 import { onLose, onWin, onUpdateActivePlayer, onUpdatePlayer } from "../../uiManager/Thunks"
 
 const TILE_WIDTH = 16
-const IMMUNITY_STEP = 8
 
-export default class BoardScene extends Scene {
+export default class RoomScene extends Scene {
 
     unsubscribeRedux: Function
     selectIcon: GameObjects.Image
     selectedTile: Tilemaps.Tile
     sounds: any
-    pieceSprites: Array<GameObjects.Sprite>
+    stations: Array<GameObjects.Sprite>
     map:Tilemaps.Tilemap
-    tileLayer: Tilemaps.StaticTilemapLayer
+    backgroundLayer: Tilemaps.StaticTilemapLayer
     messages: Array<GameObjects.Text>
-    playerStart: Tilemaps.Tile
-    cpuStart: Tilemaps.Tile
-
+    focusedItem: GameObjects.Sprite
+    progressBars: Array<GameObjects.TileSprite>
+    
     constructor(config){
         super(config)
         this.unsubscribeRedux = store.subscribe(this.onReduxUpdate)
@@ -48,42 +47,64 @@ export default class BoardScene extends Scene {
         this.sound.volume = 0.4
         this.sounds = {
             step: this.sound.add('step'),
-            intro: this.sound.add('intro'),
-            rock: this.sound.add('rock'),
-            end: this.sound.add('end'),
             destroyed: this.sound.add('destroyed'),
             error: this.sound.add('error')
         }
-        this.pieceSprites = []
+        this.stations = []
         this.messages = []
         this.map = this.make.tilemap({ key: 'map'})
-        let tileset = this.map.addTilesetImage('TILESET', 'TILESET')
+        let tileset = this.map.addTilesetImage('tiles', 'TILESET')
         
-        this.map.createStaticLayer('board', tileset)
-        this.tileLayer = this.map.createStaticLayer('tiles', tileset)
+        let h = (this.game.canvas.height - this.map.heightInPixels) / 4
+        let w = (this.game.canvas.width - this.map.widthInPixels) / 4
+        this.backgroundLayer = this.map.createStaticLayer('background', tileset, w, h)
+        let stations = this.map.createStaticLayer('stations', tileset, w, h)
+        stations.forEachTile(t=>{
+            let tile = t as Tilemaps.Tile
+            tile.alpha = 0
+            switch(tile.index){
+                case Sprites.food: 
+                    let btn = this.add.sprite(tile.getCenterX(), tile.getCenterY(), 'tiles', Sprites.button).setInteractive()
+                    this.add.text(btn.getCenter().x, btn.getCenter().y, 'Meld')
+                    btn.on('pointerdown', this.meldItems)
+                    break
+                case Sprites.work:
+                    this.researchSprite = this.add.tileSprite(tile.getCenterX(), tile.getCenterY(), 16, 16, 'tiles', Sprites.research).setInteractive()
+                    break
+                case Sprites.entertainment:
+                    let slot = this.add.sprite(tile.getCenterX(), tile.getCenterY(), 'tiles', Sprites.openSlot).setInteractive()
+                    slot.on('pointerdown', ()=>onSelectSlot(this.slots.length))
+                    this.slots.push(slot)
+                    break
+                case Sprites.sleep:
+                    let locked = this.add.sprite(tile.getCenterX(), tile.getCenterY(), 'tiles', Sprites.lockedSlot)
+                    this.slots.push(locked)
+                    break
+            }
+        })
 
-        this.playerStart = this.tileLayer.getTileAt(4,2)
-        this.cpuStart = this.tileLayer.getTileAt(4,0)
+        this.selectedTile = this.backgroundLayer.getTileAt(Math.round(this.map.width/2), Math.round(this.map.height/2))
+        this.setSelectIconPosition({x:this.selectedTile.getCenterX(), y: this.selectedTile.getCenterY()})
         
-        this.setSelectIconPosition(this.selectedTile)
-        
-        this.cameras.main.setZoom(2)
+        this.cameras.main.setZoom(1.25)
         this.cameras.main.setBounds(0, 0, this.map.widthInPixels, this.map.heightInPixels)
         this.cameras.main.setScroll(this.map.widthInPixels/2, this.map.heightInPixels/2)
         
         this.input.keyboard.on('keydown-LEFT', (event) => {
-            
+            let targetTile = this.getNextStation(1)
+            targetTile && this.setSelectIconPosition(targetTile)
         })
         this.input.keyboard.on('keydown-RIGHT', (event) => {
-            
+            let targetTile = this.getNextStation(-1)
+            targetTile && this.setSelectIconPosition(targetTile)
         })
         this.input.keyboard.on('keydown-SPACE', (event) => {
-            
+            this.tryUseSelectedStation()
         })
         this.input.mouse.disableContextMenu()
     }
 
-    setSelectIconPosition(targetTile:Tilemaps.Tile){
+    setSelectIconPosition(tuple:Tuple){
         if(!this.selectIcon){
             this.selectIcon = this.add.image(this.selectedTile.pixelX, this.selectedTile.pixelY, 'selected').setDepth(2).setScale(0.5)
             this.add.tween({
@@ -96,8 +117,7 @@ export default class BoardScene extends Scene {
                 yoyo: true
             })
         }
-        this.selectIcon.setPosition(targetTile.getCenterX(), targetTile.getCenterY())
-        this.selectedTile = targetTile
+        this.selectIcon.setPosition(tuple.x,tuple.y)
         this.sounds.step.play()
     }
 
@@ -122,5 +142,9 @@ export default class BoardScene extends Scene {
                 this.messages = this.messages.filter(f=>f.alpha > 0)
             }
         })
+    }
+
+    update(){
+        
     }
 }

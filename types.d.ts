@@ -41,6 +41,8 @@ interface Item {
     createdWithIds: Array<string>
     assetIndex: number
     kind: Kind
+    sellPrice: number
+    hasRNA: boolean
 }
 
 interface PlayerState {
@@ -49,8 +51,8 @@ interface PlayerState {
 }
 
 interface Tuple {
-    tileX: number
-    tileY: number
+    x: number
+    y: number
 }
 
 interface RState {

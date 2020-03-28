@@ -1,6 +1,6 @@
 import * as React from 'react'
 import * as Phaser from 'phaser'
-import MapScene from './display/BoardScene';
+import MapScene from './display/RoomScene';
 
 interface Props {
     
