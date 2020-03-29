@@ -58,4 +58,5 @@ interface Tuple {
 interface RState {
     engineEvent: UIReducerActions
     modal: Modal
+    difficulty: Difficulty
 }

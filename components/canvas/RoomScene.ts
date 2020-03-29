@@ -2,12 +2,12 @@ import { Scene, GameObjects, Tilemaps, Geom, Game } from "phaser";
 import { store } from "../../App";
 import { defaults, Sprites } from '../../assets/Assets'
 import { Modal, UIReducerActions, StaticLayers, Activities, StationOffsets } from "../../enum";
-import { onLose, onWin, onUpdateActivePlayer, onUpdatePlayer } from "../uiManager/Thunks"
+import { onLose, onWin, onUpdateActivePlayer, onUpdatePlayer, onShowModal } from "../uiManager/Thunks"
 import TimerSprite from "./TimerSprite";
-import { getEmoteSanity } from "../Util";
+import { getEmoteSanity, getStationUsedText } from "../Util";
 
 const TILE_WIDTH = 16
-const MAX_SANITY_PIXELS = 275
+const MAX_SANITY_PIXELS = 250
 
 export default class RoomScene extends Scene {
 
@@ -30,6 +30,8 @@ export default class RoomScene extends Scene {
     entertainmentTimeout:number
     avatar:GameObjects.Sprite
     baseX:number
+    day: number
+    hour: number
 
     constructor(config){
         super(config)
@@ -41,6 +43,8 @@ export default class RoomScene extends Scene {
         this.sleepTimeout=0
         this.workTimeout=0
         this.entertainmentTimeout=0
+        this.day = 1
+        this.hour = 0
     }
 
     preload = () =>
@@ -101,9 +105,10 @@ export default class RoomScene extends Scene {
                     break
                 case 0:
                     tile.alpha = 0
-                    this.sanityBar = this.add.tileSprite(tile.getCenterX()+125, tile.getCenterY(), 16,275,'textures', Sprites.chain).setAngle(90)
+                    this.sanityBar = this.add.tileSprite(tile.getCenterX()+125, tile.getCenterY(), 16,MAX_SANITY_PIXELS,'textures', Sprites.chain).setAngle(90)
                     this.baseX = tile.getCenterX()+125
-                    this.messageText = this.add.text(tile.getCenterX()-40, tile.getCenterY()-24, '', { color:'white' })
+                    this.add.text(tile.getCenterX()-40, tile.getCenterY()-24, 'sanity', { color:'white' })
+                    this.messageText = this.add.text(tile.getCenterX()+200, tile.getCenterY()-24, 'Day '+this.day+' of 30', { color:'white', fontSize:'12px' })
                     this.emote = this.add.sprite(tile.getCenterX()-32, tile.getCenterY(), 'emotes', Sprites.happy)
                     break
                 
@@ -142,7 +147,6 @@ export default class RoomScene extends Scene {
             if(this.selectedStation < 0) this.selectedStation = this.stations.length-1
         }
         let station = this.stations[this.selectedStation]
-        this.messageText.text = station.name
         this.setSelectIconPosition(station.getCenter())
         let stationOffset = StationOffsets[station.name]
         if(!this.avatar) this.avatar = this.add.sprite(station.getCenter().x+stationOffset.x, station.getCenter().y+stationOffset.y, 'avatar', Sprites['avatar'+station.name])
@@ -201,6 +205,7 @@ export default class RoomScene extends Scene {
             repeat:2,
             duration: 40
         })
+        this.showText(this.avatar.x, this.avatar.y+30, getStationUsedText(station.name), 'white')
     }
 
     setSanity = (val:number) => {
@@ -218,6 +223,14 @@ export default class RoomScene extends Scene {
     }
 
     tick = () => {
+        this.hour++
+        if(this.hour > 24){
+            this.day++
+            this.hour = 0
+            if(this.day > 30) onShowModal(Modal.WIN)
+            this.messageText.text = 'Day '+this.day+' of 30'
+            this.showText(this.avatar.x, this.avatar.y, 'Another day over...', 'white')
+        }
         this.foodTimeout-=10
         if(this.foodTimeout <= 0) this.foodTimeout = 0
         let t = this.timers.find(t=>t.activity === Activities.FOOD)
@@ -243,6 +256,7 @@ export default class RoomScene extends Scene {
             this.sanityBar.setPosition(this.sanityBar.x-2.5, this.sanityBar.y)
             this.emote.setFrame(getEmoteSanity(this.sanityBar.height))
         }
+        else onShowModal(Modal.LOSE)
     }
 
     setSelectIconPosition(tuple:Tuple){
@@ -268,6 +282,7 @@ export default class RoomScene extends Scene {
             fontSize: '8px',
             color
         })
+        font.setStroke('#000000', 4);
         font.setDepth(4)
         this.messages.push(font)
         font.setPosition(x-(font.displayWidth/2), y-(30*this.messages.length))
@@ -276,11 +291,10 @@ export default class RoomScene extends Scene {
             ease: 'Stepped',
             easeParams:[4],
             duration: 1500,
-            alpha: 0,
             y: y+30,
             onComplete: ()=>{
                 font.destroy()
-                this.messages = this.messages.filter(f=>f.alpha > 0)
+                this.messages = this.messages.filter(f=>f!==font)
             }
         })
     }

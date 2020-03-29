@@ -1,5 +1,5 @@
 import * as v4 from 'uuid'
-import { Difficulty } from '../enum';
+import { Difficulty, Activities } from '../enum';
 import { Sprites } from '../assets/Assets';
 
 export const getNewPlayer = () => {
@@ -15,4 +15,13 @@ export const getEmoteSanity = (sanity:number) => {
     if(sanity > 125) return Sprites.unhappy
     if(sanity > 75) return Sprites.sad
     return Sprites.dead
+}
+
+export const getStationUsedText = (stationName:string) => {
+    switch(stationName){
+        case Activities.WORK: return "Already worked today"
+        case Activities.SLEEP: return "Not tired"
+        case Activities.FOOD: return "Not hungry"
+        case Activities.ENTER: return "Just watched something"
+    }
 }

@@ -16,11 +16,8 @@ export default class ViewscreenFrame extends React.Component<Props> {
         return (
                 <div style={{position:'relative', padding:'17px', backgroundImage:'url('+require('../../assets/ui/cheetex_bones.png')+')', backgroundColor:'magenta', backgroundBlendMode:'darken'}}>
                     <Viewscreen {...this.props} />
-                    <div style={{position:"absolute", bottom:15, right:20, background:'black', padding:'5px', width:'calc(100% - 48px)'}}>
-                        <div style={{display:'flex'}}>
-                            
-                        </div>
-                    </div>
+                    {this.props.modal === Modal.LOSE && <Lose/>}
+                    {this.props.modal === Modal.WIN && <Win/>}
                 </div>
         )
     }

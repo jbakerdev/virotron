@@ -63,5 +63,5 @@ export const onHideModal = () => {
 }
 
 export const onInitSession = (difficulty:Difficulty) => {
-    dispatch({ type: UIReducerActions.NEW_SESSION })
+    dispatch({ type: UIReducerActions.NEW_SESSION, difficulty })
 }

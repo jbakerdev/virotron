@@ -10,9 +10,9 @@ export default class Lose extends React.PureComponent<Props> {
 
     render(){
         return (
-            <div style={{...AppStyles.modal, height:'450px', justifyContent:'space-between', backgroundSize:'cover'}}>
-                <h2 style={{color:'black'}}>LOSE</h2>
-                <div>{Button(true, onReset, 'PRAISE UNDUKU')}</div>
+            <div style={{...AppStyles.modal, height:'150px', width:'100px', justifyContent:'space-between', backgroundSize:'cover'}}>
+                <h2 style={{color:'black'}}>YOU DIED</h2>
+                <div>{Button(true, onReset, 'END')}</div>
             </div>
         )
     }

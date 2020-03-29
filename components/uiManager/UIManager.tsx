@@ -5,6 +5,7 @@ import Splash from '../Splash';
 
 interface Props {
     modal:Modal
+    difficulty: Difficulty
 }
 
 export default class UIManager extends React.Component<Props> {
@@ -12,8 +13,8 @@ export default class UIManager extends React.Component<Props> {
     render(){
         return (
             <div style={styles.frame}>
-                {/* {!this.props.tiles && <Splash modal={this.props.modal} creativeMode={this.props.creativeMode}/>} */}
-                <ViewscreenFrame {...this.props}/>
+                {!this.props.difficulty && <Splash/>}
+                {this.props.difficulty && <ViewscreenFrame {...this.props}/>}
             </div>
         )
     }

@@ -1,9 +1,9 @@
-import { UIReducerActions } from '../../enum'
+import { UIReducerActions, Difficulty } from '../../enum'
 
 const appReducer = (state = getInitialState(), action:any):RState => {
     switch (action.type) {
         case UIReducerActions.NEW_SESSION:
-            return { ...state, engineEvent: null}
+            return { ...state, engineEvent: null, difficulty: action.difficulty}
         case UIReducerActions.SHOW_MODAL: 
             return { ...state, modal: action.modal, engineEvent:null }
         case UIReducerActions.HIDE_MODAL: 
@@ -20,6 +20,7 @@ export default appReducer;
 const getInitialState = ():RState => {
     return {
        modal: null,
-       engineEvent: null
+       engineEvent: null,
+       difficulty: null
     }
 }
