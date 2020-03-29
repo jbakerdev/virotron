@@ -19,6 +19,10 @@ export default class RoomScene extends Scene {
     messages: Array<GameObjects.Text>
     focusedItem: GameObjects.Sprite
     progressBars: Array<GameObjects.TileSprite>
+    foodTimeout: number
+    sleepTimeout:number
+    workTimeout:number
+    entertainmentTimeout:number
     
     constructor(config){
         super(config)
@@ -78,6 +82,22 @@ export default class RoomScene extends Scene {
                     tile.alpha = 0
                     this.stations.push(this.add.sprite(tile.getCenterX(), tile.getCenterY(), 'sprites', Sprites.sleep).setInteractive().setName('sleep'))
                     break
+                case Sprites.workProgress:
+                    tile.alpha = 0
+                    this.progressBars.push(this.add.tileSprite(tile.getCenterX(), tile.getCenterY(), 16,16,'textures', Sprites.workProgress))
+                    break
+                case Sprites.entertainmentProgress:
+                    tile.alpha = 0
+                    this.progressBars.push(this.add.tileSprite(tile.getCenterX(), tile.getCenterY(), 16,16,'textures', Sprites.entertainmentProgress))
+                    break
+                case Sprites.sleepProgress:
+                    tile.alpha = 0
+                    this.progressBars.push(this.add.tileSprite(tile.getCenterX(), tile.getCenterY(), 16,16,'textures', Sprites.sleepProgress))
+                    break
+                case Sprites.foodProgress:
+                    tile.alpha = 0
+                    this.progressBars.push(this.add.tileSprite(tile.getCenterX(), tile.getCenterY(), 16,16,'textures', Sprites.foodProgress))
+                    break
             }
         })
         this.selectedStation = 0
@@ -85,7 +105,13 @@ export default class RoomScene extends Scene {
         this.selectedLabel = this.add.text(0, -20, this.stations[this.selectedStation].name, 
         { color:'white' }
         )
-        
+
+        this.time.addEvent({
+            delay: 1000,
+            callback: this.tick,
+            repeat: -1
+        })
+
         this.cameras.main.setZoom(2)
         this.cameras.main.centerOn(floor.getBottomRight().x, floor.getBottomRight().y)
         
@@ -103,6 +129,35 @@ export default class RoomScene extends Scene {
             //this.tryUseSelectedStation()
         })
         this.input.mouse.disableContextMenu()
+    }
+
+    tick = () => {
+        this.progressBars.forEach(p=>{
+            switch(p.frame){
+                case Sprites.foodProgress:
+                    p.width-=2
+                    this.foodTimeout--
+                    this.foodTimeout = Math.max(0,this.foodTimeout)
+                    break
+                case Sprites.sleepProgress:
+                    //Decreased further by work action
+                    p.width-=2
+                    this.sleepTimeout--
+                    this.sleepTimeout = Math.max(0,this.sleepTimeout)
+                    break
+                case Sprites.entertainmentProgress:
+                    p.width-=2
+                    this.entertainmentTimeout--
+                    this.entertainmentTimeout = Math.max(0,this.entertainmentTimeout)
+                    break
+                case Sprites.workProgress:
+                    //Decreased further by entertainment action
+                    p.width-=2
+                    this.workTimeout--
+                    this.workTimeout = Math.max(0,this.workTimeout)
+                    break
+            }
+        })
     }
 
     setSelectIconPosition(tuple:Tuple){

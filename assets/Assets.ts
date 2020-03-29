@@ -10,7 +10,8 @@ export const defaults = [
     { key: 'destroyed', resource: require('./audio/destroyed.mp3'), type: 'audio' },
     { key: 'selected', resource: require('./selected.png'), type: 'image'},
     { key: 'map', resource: require('./display.json'), type: 'tilemapTiledJSON', data: {}},
-    { key: 'sprites', resource: require('./tiles.png'), type: 'spritesheet', data: { frameWidth: 16, frameHeight: 16 }}
+    { key: 'sprites', resource: require('./tiles.png'), type: 'spritesheet', data: { frameWidth: 16, frameHeight: 16 }},
+    { key: 'textures', resource: require('./textures.png'), type: 'spritesheet', data: { frameWidth: 16, frameHeight: 16 }}
 ]
 
 export const Sprites = {
