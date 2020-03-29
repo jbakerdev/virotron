@@ -1,13 +1,17 @@
-import { Scene, GameObjects, Tilemaps, Geom, Game } from "phaser";
+import { Scene, GameObjects, Tilemaps, Geom, Game, Display } from "phaser";
 import { store } from "../../App";
 import { defaults, Sprites } from '../../assets/Assets'
-import { Modal, UIReducerActions, StaticLayers, Activities, StationOffsets } from "../../enum";
+import { Modal, UIReducerActions, StaticLayers, Activities, StationOffsets, RandomEvents, Chatter } from "../../enum";
 import { onLose, onWin, onUpdateActivePlayer, onUpdatePlayer, onShowModal } from "../uiManager/Thunks"
 import TimerSprite from "./TimerSprite";
-import { getEmoteSanity, getStationUsedText } from "../Util";
+import { getEmoteSanity, getStationUsedText, getDays } from "../Util";
 
 const TILE_WIDTH = 16
 const MAX_SANITY_PIXELS = 250
+const FOOD_MAX=100
+const ENT_MAX=100
+const WORK_MAX=200
+const SLEEP_MAX=300
 
 export default class RoomScene extends Scene {
 
@@ -22,16 +26,22 @@ export default class RoomScene extends Scene {
     backgroundLayer: Tilemaps.StaticTilemapLayer
     messages: Array<GameObjects.Text>
     focusedItem: GameObjects.Sprite
-    sanityBar: GameObjects.TileSprite
     emote: GameObjects.Sprite
     foodTimeout: number
     sleepTimeout:number
     workTimeout:number
     entertainmentTimeout:number
     avatar:GameObjects.Sprite
-    baseX:number
+    baseX: number
     day: number
     hour: number
+    maxDays: number
+    meals: number
+    mealCounter: GameObjects.Text
+    status: Status
+    g:GameObjects.Graphics
+    sanity:number
+    bar:GameObjects.TileSprite
 
     constructor(config){
         super(config)
@@ -45,6 +55,14 @@ export default class RoomScene extends Scene {
         this.entertainmentTimeout=0
         this.day = 1
         this.hour = 0
+        this.meals = 6
+        this.maxDays = getDays(store.getState().difficulty)
+        this.sanity = MAX_SANITY_PIXELS
+        this.status = {
+            internet: false,
+            doctor: false,
+            fired: false
+        }
     }
 
     preload = () =>
@@ -67,13 +85,15 @@ export default class RoomScene extends Scene {
 
     create = () =>
     {
-        this.sound.volume = 0.4
+        this.sound.volume = 0.1
         this.sounds = {
             step: this.sound.add('step'),
-            destroyed: this.sound.add('destroyed'),
-            error: this.sound.add('error')
+            dead: this.sound.add('dead'),
+            error: this.sound.add('error'),
+            gameplay: this.sound.add('gameplay')
         }
-        
+        this.sounds.gameplay.play({ loop:true})
+
         this.map = this.make.tilemap({ key: 'map'})
         let tileset = this.map.addTilesetImage('tiles', 'TILESET')
         
@@ -85,7 +105,7 @@ export default class RoomScene extends Scene {
             switch(tile.index-1){
                 case Sprites.food: 
                     tile.alpha = 0
-                    this.stations.push(this.add.sprite(tile.getCenterX(), tile.getCenterY(), 'sprites', Sprites.food).setInteractive().setName(Activities.FOOD))
+                    this.stations.push(this.add.sprite(tile.getCenterX(), tile.getCenterY(), 'sprites', Sprites.food).setInteractive().setName(Activities.FOOD).setAngle(90))
                     this.timers.push(new TimerSprite(this, tile.getCenterX(), tile.getCenterY()-16, 'time', Activities.FOOD).setAlpha(0))
                     break
                 case Sprites.work:
@@ -105,13 +125,19 @@ export default class RoomScene extends Scene {
                     break
                 case 0:
                     tile.alpha = 0
-                    this.sanityBar = this.add.tileSprite(tile.getCenterX()+125, tile.getCenterY(), 16,MAX_SANITY_PIXELS,'textures', Sprites.chain).setAngle(90)
-                    this.baseX = tile.getCenterX()+125
+                    this.bar = this.add.tileSprite(tile.getLeft()+125, tile.getTop()+8, MAX_SANITY_PIXELS, 16, 'chain')
+                    this.time.addEvent({
+                        delay:250,
+                        callback: ()=>{
+                            this.bar.setTilePosition(this.bar.tilePositionX+1)
+                        },
+                        repeat:-1
+                    })
                     this.add.text(tile.getCenterX()-40, tile.getCenterY()-24, 'sanity', { color:'white' })
-                    this.messageText = this.add.text(tile.getCenterX()+200, tile.getCenterY()-24, 'Day '+this.day+' of 30', { color:'white', fontSize:'12px' })
+                    this.messageText = this.add.text(tile.getCenterX()+200, tile.getCenterY()-24, 'Day '+this.day+' of '+this.maxDays, { color:'white', fontSize:'12px' })
+                    this.mealCounter = this.add.text(tile.getCenterX()+200, tile.getCenterY()+8, this.meals + ' meals left', { color:'white', fontSize:'12px' })
                     this.emote = this.add.sprite(tile.getCenterX()-32, tile.getCenterY(), 'emotes', Sprites.happy)
                     break
-                
             }
         })
         this.selectedStation = 0
@@ -127,13 +153,13 @@ export default class RoomScene extends Scene {
         this.cameras.main.centerOn(floor.getBottomRight().x, floor.getBottomRight().y)
         
         this.input.keyboard.on('keydown-LEFT', (event) => {
-            this.setSelectedStation(-1)
+            if(this.avatar.alpha > 0) this.setSelectedStation(-1)
         })
         this.input.keyboard.on('keydown-RIGHT', (event) => {
-            this.setSelectedStation(1)
+            if(this.avatar.alpha > 0) this.setSelectedStation(1)
         })
         this.input.keyboard.on('keydown-SPACE', (event) => {
-            this.tryUseSelectedStation()
+            if(this.avatar.alpha > 0) this.tryUseSelectedStation()
         })
         this.input.mouse.disableContextMenu()
     }
@@ -161,29 +187,52 @@ export default class RoomScene extends Scene {
         switch(station.name){
             case Activities.WORK:
                 if(this.workTimeout === 0) {
-                    this.workTimeout = 100
-                    this.setSanity(this.sanityBar.height + 20)
+                    this.workTimeout = WORK_MAX
+                    this.setSanity(this.sanity+20)
                 }
                 else this.shakeIt(station)
                 break
             case Activities.SLEEP:
                 if(this.sleepTimeout === 0) {
-                    this.sleepTimeout = 100
-                    this.setSanity(this.sanityBar.height + 20)
+                    this.sleepTimeout = SLEEP_MAX
+                    this.setSanity(this.sanity+30)
                 }
                 else this.shakeIt(station)
                 break
             case Activities.ENTER:
                 if(this.entertainmentTimeout === 0) {
-                    this.entertainmentTimeout = 100
-                    this.setSanity(this.sanityBar.height + 20)
+                    this.entertainmentTimeout = ENT_MAX
+                    this.setSanity(this.sanity+20)
                 }
                 else this.shakeIt(station)
                 break
             case Activities.FOOD:
                 if(this.foodTimeout === 0) {
-                    this.foodTimeout = 100
-                    this.setSanity(this.sanityBar.height + 20)
+                    this.foodTimeout = FOOD_MAX
+                    this.setSanity(this.sanity+10)
+                    this.meals--
+                    this.mealCounter.text = this.meals + ' meals left'
+                    if(this.meals <= 0) {
+                        this.showText(this.avatar.getBottomCenter().x, this.avatar.getBottomCenter().y, 'You are out of food and must venture out', 5)
+                        this.avatar.setAlpha(0)
+                        this.time.addEvent({
+                            delay: 5000,
+                            callback: ()=>{
+                                if(Phaser.Math.Between(0,10)===10){
+                                    this.sounds.gameplay.stop()
+                                    this.sounds.dead.play()
+                                    onLose('You caught the virus.')
+                                } 
+                                else{
+                                    this.avatar.setAlpha(1)
+                                    this.meals = 6
+                                    this.mealCounter.text = this.meals + ' meals left'
+                                    this.showText(this.avatar.getBottomCenter().x, this.avatar.getBottomCenter().y, 'You were able to find some food')
+                                } 
+                            }
+                        })
+                        
+                    }
                 }
                 else this.shakeIt(station)
                 break
@@ -205,58 +254,111 @@ export default class RoomScene extends Scene {
             repeat:2,
             duration: 40
         })
-        this.showText(this.avatar.x, this.avatar.y+30, getStationUsedText(station.name), 'white')
+        this.showText(this.avatar.getBottomCenter().x, this.avatar.getBottomCenter().y+30, getStationUsedText(station.name, this.status))
     }
 
     setSanity = (val:number) => {
         val = Math.min(MAX_SANITY_PIXELS, val)
-        this.tweens.add({
-            targets: this.sanityBar,
-            height: val,
-            duration: 1000,
-            ease: 'Stepped',
-            easeParams: [3],
-            onUpdate: ()=>{
-                this.sanityBar.setPosition(this.baseX, this.sanityBar.y)
-            }
-        })
+        if(val > this.sanity){
+            this.tweens.add({
+                targets: this.bar,
+                tilePositionX: this.bar.tilePositionX-5,
+                duration: 500
+            })
+        }
+        let diff = this.sanity - val
+        this.bar.width = val
+        this.bar.setPosition(this.bar.x-(diff/2), this.bar.y)
+        this.sanity = val
     }
 
     tick = () => {
-        this.hour++
-        if(this.hour > 24){
-            this.day++
-            this.hour = 0
-            if(this.day > 30) onShowModal(Modal.WIN)
-            this.messageText.text = 'Day '+this.day+' of 30'
-            this.showText(this.avatar.x, this.avatar.y, 'Another day over...', 'white')
+        if(!store.getState().modal){
+            this.hour++
+            if(this.hour > 24){
+                this.day++
+                this.hour = 0
+                if(this.day > this.maxDays) onShowModal(Modal.WIN)
+                this.messageText.text = 'Day '+this.day+' of '+this.maxDays
+                this.showText(this.avatar.getBottomCenter().x, this.avatar.getBottomCenter().y, 'Another day over...')
+            }
+
+            let event
+            if(Phaser.Math.Between(0,100) === 100){
+                event = RandomEvents[Phaser.Math.Between(0,RandomEvents.length-1)]
+            }
+            if(event){
+                if(event.id === 'fired'){
+                    this.status.fired = true
+                }
+                else if(event.id === 'doctor'){
+                    this.avatar.setAlpha(0)
+                    this.time.addEvent({
+                        delay: event.duration*1000,
+                        callback:() => {
+                            if(Phaser.Math.Between(0,10) === 10){
+                                onLose('You caught the virus.')
+                                this.sounds.gameplay.stop()
+                                this.sounds.dead.play()
+                            }
+                            else {
+                                this.showText(this.avatar.getBottomCenter().x, this.avatar.getBottomCenter().y, 'You made it back with medicine.')
+                                this.avatar.setAlpha(1)
+                            }
+                        }
+                    })
+                } 
+                else if(event.id === 'internet'){
+                    this.time.addEvent({
+                        delay: event.duration*1000,
+                        callback:() => {
+                            this.showText(this.avatar.getBottomCenter().x, this.avatar.getBottomCenter().y, 'They fixed the internet.')
+                            this.status.internet = false
+                        }
+                    })
+                }
+                this.showText(this.avatar.getBottomCenter().x, this.avatar.getBottomCenter().y, event.title, event.duration)
+            }
+            else if(Phaser.Math.Between(0,33) === 33) {
+                this.showText(this.avatar.getBottomCenter().x, this.avatar.getBottomCenter().y, Chatter[Phaser.Math.Between(0,Chatter.length-1)].title, 3)
+            }
+
+            this.foodTimeout-=10
+            if(this.foodTimeout <= 0) this.foodTimeout = 0
+            let t = this.timers.find(t=>t.activity === Activities.FOOD)
+            t.setOverlayPercent(this.foodTimeout/FOOD_MAX)
+    
+            this.sleepTimeout-=10
+            if(this.sleepTimeout <= 0) this.sleepTimeout = 0
+            t = this.timers.find(t=>t.activity === Activities.SLEEP)
+            t.setOverlayPercent(this.sleepTimeout/SLEEP_MAX)
+    
+            if(!this.status.internet){
+                this.entertainmentTimeout-=10
+            }
+            else this.entertainmentTimeout = ENT_MAX
+            if(this.entertainmentTimeout <= 0) this.entertainmentTimeout = 0
+            t = this.timers.find(t=>t.activity === Activities.ENTER)
+            t.setOverlayPercent(this.entertainmentTimeout/ENT_MAX)
+    
+            if(!this.status.fired){
+                this.workTimeout-=10
+            }
+            else this.workTimeout = WORK_MAX
+            if(this.workTimeout <= 0) this.workTimeout = 0
+            t = this.timers.find(t=>t.activity === Activities.WORK)
+            t.setOverlayPercent(this.workTimeout/WORK_MAX)
+            
+            if(this.sanity >= 0){
+                this.setSanity(this.sanity-6)
+                this.emote.setFrame(getEmoteSanity(this.sanity))
+            }
+            else{
+                this.sounds.gameplay.stop()
+                this.sounds.dead.play()
+                onLose('You went insane.')
+            } 
         }
-        this.foodTimeout-=10
-        if(this.foodTimeout <= 0) this.foodTimeout = 0
-        let t = this.timers.find(t=>t.activity === Activities.FOOD)
-        t.setOverlayPercent(this.foodTimeout/100)
-
-        this.sleepTimeout-=10
-        if(this.sleepTimeout <= 0) this.sleepTimeout = 0
-        t = this.timers.find(t=>t.activity === Activities.SLEEP)
-        t.setOverlayPercent(this.sleepTimeout/100)
-
-        this.entertainmentTimeout-=10
-        if(this.entertainmentTimeout <= 0) this.entertainmentTimeout = 0
-        t = this.timers.find(t=>t.activity === Activities.ENTER)
-        t.setOverlayPercent(this.entertainmentTimeout/100)
-
-        this.workTimeout-=10
-        if(this.workTimeout <= 0) this.workTimeout = 0
-        t = this.timers.find(t=>t.activity === Activities.WORK)
-        t.setOverlayPercent(this.workTimeout/100)
-
-        if(this.sanityBar.height > 5){
-            this.sanityBar.height-=5
-            this.sanityBar.setPosition(this.sanityBar.x-2.5, this.sanityBar.y)
-            this.emote.setFrame(getEmoteSanity(this.sanityBar.height))
-        }
-        else onShowModal(Modal.LOSE)
     }
 
     setSelectIconPosition(tuple:Tuple){
@@ -276,25 +378,23 @@ export default class RoomScene extends Scene {
         this.sounds.step.play()
     }
 
-    showText = (x:number, y:number, text:string, color:string) => {
-        let font = this.add.text(x, y, text, {
+    showText = (x:number, y:number, text:string, duration?:number) => {
+        let font = this.add.text(x-30, y, text, {
             fontFamily: 'Arcology', 
             fontSize: '8px',
-            color
+            color: 'white'
         })
-        font.setStroke('#000000', 4);
+        font.setStroke('#000000', 2);
+        font.setWordWrapWidth(120)
         font.setDepth(4)
-        this.messages.push(font)
-        font.setPosition(x-(font.displayWidth/2), y-(30*this.messages.length))
         this.add.tween({
             targets: font,
             ease: 'Stepped',
             easeParams:[4],
-            duration: 1500,
-            y: y+30,
+            duration: duration ? duration*1000 : 1500,
+            y: y,
             onComplete: ()=>{
                 font.destroy()
-                this.messages = this.messages.filter(f=>f!==font)
             }
         })
     }

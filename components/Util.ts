@@ -17,11 +17,19 @@ export const getEmoteSanity = (sanity:number) => {
     return Sprites.dead
 }
 
-export const getStationUsedText = (stationName:string) => {
+export const getStationUsedText = (stationName:string, status:Status) => {
     switch(stationName){
-        case Activities.WORK: return "Already worked today"
+        case Activities.WORK: return status.fired ? "No work to do" : "Already worked today"
         case Activities.SLEEP: return "Not tired"
         case Activities.FOOD: return "Not hungry"
-        case Activities.ENTER: return "Just watched something"
+        case Activities.ENTER: return status.internet ? "No internet" : "Just watched something"
+    }
+}
+
+export const getDays = (difficulty:Difficulty) => {
+    switch(difficulty){
+        case Difficulty.EASY: return 30
+        case Difficulty.MEDIUM: return 60
+        case Difficulty.HARD: return 120
     }
 }

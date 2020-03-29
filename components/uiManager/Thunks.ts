@@ -29,9 +29,11 @@ export const onUpdateNPCs = (npcs:Array<PlayerState>) => {
     })
 }
 
-export const onLose = () => {
+export const onLose = (text:string) => {
     dispatch({
-        type: UIReducerActions.LOSE
+        type: UIReducerActions.SHOW_MODAL,
+        text,
+        modal: Modal.LOSE
     })
 }
 

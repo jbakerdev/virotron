@@ -5,7 +5,7 @@ const appReducer = (state = getInitialState(), action:any):RState => {
         case UIReducerActions.NEW_SESSION:
             return { ...state, engineEvent: null, difficulty: action.difficulty}
         case UIReducerActions.SHOW_MODAL: 
-            return { ...state, modal: action.modal, engineEvent:null }
+            return { ...state, modal: action.modal, engineEvent:null, text: action.text }
         case UIReducerActions.HIDE_MODAL: 
             return { ...state, modal: null, engineEvent:null }
         case UIReducerActions.RESET:
@@ -21,6 +21,7 @@ const getInitialState = ():RState => {
     return {
        modal: null,
        engineEvent: null,
-       difficulty: null
+       difficulty: null,
+       text: ''
     }
 }

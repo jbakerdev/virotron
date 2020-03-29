@@ -55,8 +55,15 @@ interface Tuple {
     y: number
 }
 
+interface Status {
+    internet: boolean
+    doctor: boolean
+    fired:boolean
+}
+
 interface RState {
     engineEvent: UIReducerActions
     modal: Modal
     difficulty: Difficulty
+    text:string
 }
