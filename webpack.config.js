@@ -1,25 +1,31 @@
 const path = require('path')
 const webpack= require('webpack')
+const HtmlWebpackPlugin = require("html-webpack-plugin");
 module.exports = {
     entry: [
         "./index.tsx"
     ],
     output: {
-        path: path.join(__dirname, './build/'),
-        filename: 'bundle.js',
-        publicPath: './',
+        path: path.join(__dirname, './build'),
+        filename: 'bundle.js'
     },
     devServer: {
         contentBase: path.join(__dirname, './build'),
         compress: true,
-        port: 9000
+        port: 9000,
+        open:true,
+        index:'index.html'
     },
     devtool: 'eval-source-map',
     resolve: {extensions: ['.js', '.jsx', '.ts', '.tsx']},
     plugins: [
         new webpack.WatchIgnorePlugin([
           /\.d\.ts$/
-        ])
+        ]),
+        new HtmlWebpackPlugin({
+            template: "./build/index.html",
+            filename: "index.html"
+        }),
       ],
     module: {
         rules: [{

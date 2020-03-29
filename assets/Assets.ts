@@ -18,7 +18,11 @@ export const Sprites = {
     work: 393,
     food: 266,
     entertainment: 291,
-    sleep: 360
+    sleep: 360,
+    sleepProgress: 331,
+    workProgress: 330,
+    entertainmentProgress: 329,
+    foodProgress: 328
 }
 
 export const Icons = {

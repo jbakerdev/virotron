@@ -27,6 +27,13 @@ export default class RoomScene extends Scene {
     constructor(config){
         super(config)
         this.unsubscribeRedux = store.subscribe(this.onReduxUpdate)
+        this.stations = []
+        this.messages = []
+        this.progressBars = []
+        this.foodTimeout=100
+        this.sleepTimeout=100
+        this.workTimeout=100
+        this.entertainmentTimeout=100
     }
 
     preload = () =>
@@ -55,8 +62,7 @@ export default class RoomScene extends Scene {
             destroyed: this.sound.add('destroyed'),
             error: this.sound.add('error')
         }
-        this.stations = []
-        this.messages = []
+        
         this.map = this.make.tilemap({ key: 'map'})
         let tileset = this.map.addTilesetImage('tiles', 'TILESET')
         
@@ -116,7 +122,9 @@ export default class RoomScene extends Scene {
         this.cameras.main.centerOn(floor.getBottomRight().x, floor.getBottomRight().y)
         
         this.input.keyboard.on('keydown-LEFT', (event) => {
-            this.selectedStation = (this.selectedStation-1)%this.stations.length
+            this.selectedStation = this.selectedStation - 1
+            if(this.selectedStation < 0) this.selectedStation = this.stations.length-1
+            console.log(this.selectedStation)
             this.selectedLabel.text = this.stations[this.selectedStation].name
             this.setSelectIconPosition(this.stations[this.selectedStation].getCenter())
         })
@@ -133,28 +141,28 @@ export default class RoomScene extends Scene {
 
     tick = () => {
         this.progressBars.forEach(p=>{
-            switch(p.frame){
+            switch(p.frame.sourceIndex){
                 case Sprites.foodProgress:
                     p.width-=2
                     this.foodTimeout--
-                    this.foodTimeout = Math.max(0,this.foodTimeout)
+                    if(this.foodTimeout <= 0) this.foodTimeout = 100
                     break
                 case Sprites.sleepProgress:
                     //Decreased further by work action
                     p.width-=2
                     this.sleepTimeout--
-                    this.sleepTimeout = Math.max(0,this.sleepTimeout)
+                    if(this.sleepTimeout <= 0) this.sleepTimeout = 100
                     break
                 case Sprites.entertainmentProgress:
                     p.width-=2
                     this.entertainmentTimeout--
-                    this.entertainmentTimeout = Math.max(0,this.entertainmentTimeout)
+                    if(this.entertainmentTimeout <= 0) this.entertainmentTimeout = 100
                     break
                 case Sprites.workProgress:
                     //Decreased further by entertainment action
                     p.width-=2
                     this.workTimeout--
-                    this.workTimeout = Math.max(0,this.workTimeout)
+                    if(this.workTimeout <= 0) this.workTimeout = 100
                     break
             }
         })
