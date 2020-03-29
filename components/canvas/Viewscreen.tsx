@@ -23,7 +23,7 @@ export default class Viewscreen extends React.Component<Props, State> {
 
     componentDidMount() {
         this.state.phaserInstance = new Phaser.Game({
-            type: Phaser.WEBGL,
+            type: Phaser.CANVAS,
             width: this.state.containerRef.current.clientWidth,
             height: this.state.containerRef.current.clientHeight,
             parent: 'canvasEl',

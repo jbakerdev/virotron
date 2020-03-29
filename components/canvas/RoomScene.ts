@@ -1,39 +1,46 @@
-import { Scene, GameObjects, Tilemaps, Geom } from "phaser";
+import { Scene, GameObjects, Tilemaps, Geom, Game } from "phaser";
 import { store } from "../../App";
 import { defaults, Sprites } from '../../assets/Assets'
-import { Modal, UIReducerActions, StaticLayers } from "../../enum";
+import { Modal, UIReducerActions, StaticLayers, Activities, StationOffsets } from "../../enum";
 import { onLose, onWin, onUpdateActivePlayer, onUpdatePlayer } from "../uiManager/Thunks"
+import TimerSprite from "./TimerSprite";
+import { getEmoteSanity } from "../Util";
 
 const TILE_WIDTH = 16
+const MAX_SANITY_PIXELS = 275
 
 export default class RoomScene extends Scene {
 
     unsubscribeRedux: Function
     selectIcon: GameObjects.Image
     selectedStation: number
-    selectedLabel: GameObjects.Text
+    messageText: GameObjects.Text
     sounds: any
     stations: Array<GameObjects.Sprite>
+    timers: Array<TimerSprite>
     map:Tilemaps.Tilemap
     backgroundLayer: Tilemaps.StaticTilemapLayer
     messages: Array<GameObjects.Text>
     focusedItem: GameObjects.Sprite
-    progressBars: Array<GameObjects.TileSprite>
+    sanityBar: GameObjects.TileSprite
+    emote: GameObjects.Sprite
     foodTimeout: number
     sleepTimeout:number
     workTimeout:number
     entertainmentTimeout:number
-    
+    avatar:GameObjects.Sprite
+    baseX:number
+
     constructor(config){
         super(config)
         this.unsubscribeRedux = store.subscribe(this.onReduxUpdate)
         this.stations = []
         this.messages = []
-        this.progressBars = []
-        this.foodTimeout=100
-        this.sleepTimeout=100
-        this.workTimeout=100
-        this.entertainmentTimeout=100
+        this.timers = []
+        this.foodTimeout=0
+        this.sleepTimeout=0
+        this.workTimeout=0
+        this.entertainmentTimeout=0
     }
 
     preload = () =>
@@ -74,43 +81,36 @@ export default class RoomScene extends Scene {
             switch(tile.index-1){
                 case Sprites.food: 
                     tile.alpha = 0
-                    this.stations.push(this.add.sprite(tile.getCenterX(), tile.getCenterY(), 'sprites', Sprites.food).setInteractive().setName('food'))
+                    this.stations.push(this.add.sprite(tile.getCenterX(), tile.getCenterY(), 'sprites', Sprites.food).setInteractive().setName(Activities.FOOD))
+                    this.timers.push(new TimerSprite(this, tile.getCenterX(), tile.getCenterY()-16, 'time', Activities.FOOD).setAlpha(0))
                     break
                 case Sprites.work:
                     tile.alpha = 0
-                    this.stations.push(this.add.sprite(tile.getCenterX(), tile.getCenterY(), 'sprites', Sprites.work).setInteractive().setName('work'))
+                    this.stations.push(this.add.sprite(tile.getCenterX(), tile.getCenterY(), 'sprites', Sprites.work).setInteractive().setName(Activities.WORK))
+                    this.timers.push(new TimerSprite(this, tile.getCenterX(), tile.getCenterY()-16, 'time',Activities.WORK).setAlpha(0))
                     break
                 case Sprites.entertainment:
                     tile.alpha = 0
-                    this.stations.push(this.add.sprite(tile.getCenterX(), tile.getCenterY(), 'sprites', Sprites.entertainment).setInteractive().setName('entertainment'))
+                    this.stations.push(this.add.sprite(tile.getCenterX(), tile.getCenterY(), 'sprites', Sprites.entertainment).setInteractive().setName(Activities.ENTER))
+                    this.timers.push(new TimerSprite(this, tile.getCenterX(), tile.getCenterY()-16, 'time', Activities.ENTER).setAlpha(0))
                     break
                 case Sprites.sleep:
                     tile.alpha = 0
-                    this.stations.push(this.add.sprite(tile.getCenterX(), tile.getCenterY(), 'sprites', Sprites.sleep).setInteractive().setName('sleep'))
+                    this.stations.push(this.add.sprite(tile.getCenterX(), tile.getCenterY(), 'sprites', Sprites.sleep).setInteractive().setName(Activities.SLEEP))
+                    this.timers.push(new TimerSprite(this, tile.getCenterX(), tile.getCenterY()-16, 'time',Activities.SLEEP).setAlpha(0))
                     break
-                case Sprites.workProgress:
+                case 0:
                     tile.alpha = 0
-                    this.progressBars.push(this.add.tileSprite(tile.getCenterX(), tile.getCenterY(), 16,16,'textures', Sprites.workProgress))
+                    this.sanityBar = this.add.tileSprite(tile.getCenterX()+125, tile.getCenterY(), 16,275,'textures', Sprites.chain).setAngle(90)
+                    this.baseX = tile.getCenterX()+125
+                    this.messageText = this.add.text(tile.getCenterX()-40, tile.getCenterY()-24, '', { color:'white' })
+                    this.emote = this.add.sprite(tile.getCenterX()-32, tile.getCenterY(), 'emotes', Sprites.happy)
                     break
-                case Sprites.entertainmentProgress:
-                    tile.alpha = 0
-                    this.progressBars.push(this.add.tileSprite(tile.getCenterX(), tile.getCenterY(), 16,16,'textures', Sprites.entertainmentProgress))
-                    break
-                case Sprites.sleepProgress:
-                    tile.alpha = 0
-                    this.progressBars.push(this.add.tileSprite(tile.getCenterX(), tile.getCenterY(), 16,16,'textures', Sprites.sleepProgress))
-                    break
-                case Sprites.foodProgress:
-                    tile.alpha = 0
-                    this.progressBars.push(this.add.tileSprite(tile.getCenterX(), tile.getCenterY(), 16,16,'textures', Sprites.foodProgress))
-                    break
+                
             }
         })
         this.selectedStation = 0
-        this.setSelectIconPosition(this.stations[this.selectedStation].getCenter())
-        this.selectedLabel = this.add.text(0, -20, this.stations[this.selectedStation].name, 
-        { color:'white' }
-        )
+        this.setSelectedStation(0)
 
         this.time.addEvent({
             delay: 1000,
@@ -122,50 +122,127 @@ export default class RoomScene extends Scene {
         this.cameras.main.centerOn(floor.getBottomRight().x, floor.getBottomRight().y)
         
         this.input.keyboard.on('keydown-LEFT', (event) => {
-            this.selectedStation = this.selectedStation - 1
-            if(this.selectedStation < 0) this.selectedStation = this.stations.length-1
-            console.log(this.selectedStation)
-            this.selectedLabel.text = this.stations[this.selectedStation].name
-            this.setSelectIconPosition(this.stations[this.selectedStation].getCenter())
+            this.setSelectedStation(-1)
         })
         this.input.keyboard.on('keydown-RIGHT', (event) => {
-            this.selectedStation = (this.selectedStation+1)%this.stations.length
-            this.selectedLabel.text = this.stations[this.selectedStation].name
-            this.setSelectIconPosition(this.stations[this.selectedStation].getCenter())
+            this.setSelectedStation(1)
         })
         this.input.keyboard.on('keydown-SPACE', (event) => {
-            //this.tryUseSelectedStation()
+            this.tryUseSelectedStation()
         })
         this.input.mouse.disableContextMenu()
     }
 
-    tick = () => {
-        this.progressBars.forEach(p=>{
-            switch(p.frame.sourceIndex){
-                case Sprites.foodProgress:
-                    p.width-=2
-                    this.foodTimeout--
-                    if(this.foodTimeout <= 0) this.foodTimeout = 100
-                    break
-                case Sprites.sleepProgress:
-                    //Decreased further by work action
-                    p.width-=2
-                    this.sleepTimeout--
-                    if(this.sleepTimeout <= 0) this.sleepTimeout = 100
-                    break
-                case Sprites.entertainmentProgress:
-                    p.width-=2
-                    this.entertainmentTimeout--
-                    if(this.entertainmentTimeout <= 0) this.entertainmentTimeout = 100
-                    break
-                case Sprites.workProgress:
-                    //Decreased further by entertainment action
-                    p.width-=2
-                    this.workTimeout--
-                    if(this.workTimeout <= 0) this.workTimeout = 100
-                    break
+    setSelectedStation = (index:number) => {
+        if(index > 0){
+            this.selectedStation = (this.selectedStation+index)%this.stations.length
+        }
+        else {
+            this.selectedStation = this.selectedStation - 1
+            if(this.selectedStation < 0) this.selectedStation = this.stations.length-1
+        }
+        let station = this.stations[this.selectedStation]
+        this.messageText.text = station.name
+        this.setSelectIconPosition(station.getCenter())
+        let stationOffset = StationOffsets[station.name]
+        if(!this.avatar) this.avatar = this.add.sprite(station.getCenter().x+stationOffset.x, station.getCenter().y+stationOffset.y, 'avatar', Sprites['avatar'+station.name])
+        else{
+            this.avatar.setFrame(Sprites['avatar'+station.name])
+            this.avatar.setPosition(station.getCenter().x+stationOffset.x, station.getCenter().y+stationOffset.y)
+        } 
+    }
+
+    tryUseSelectedStation = () => {
+        let station = this.stations[this.selectedStation]
+        switch(station.name){
+            case Activities.WORK:
+                if(this.workTimeout === 0) {
+                    this.workTimeout = 100
+                    this.setSanity(this.sanityBar.height + 20)
+                }
+                else this.shakeIt(station)
+                break
+            case Activities.SLEEP:
+                if(this.sleepTimeout === 0) {
+                    this.sleepTimeout = 100
+                    this.setSanity(this.sanityBar.height + 20)
+                }
+                else this.shakeIt(station)
+                break
+            case Activities.ENTER:
+                if(this.entertainmentTimeout === 0) {
+                    this.entertainmentTimeout = 100
+                    this.setSanity(this.sanityBar.height + 20)
+                }
+                else this.shakeIt(station)
+                break
+            case Activities.FOOD:
+                if(this.foodTimeout === 0) {
+                    this.foodTimeout = 100
+                    this.setSanity(this.sanityBar.height + 20)
+                }
+                else this.shakeIt(station)
+                break
+        }
+    }
+
+    shakeIt = (station:GameObjects.Sprite) => {
+        this.sounds.error.play()
+        this.tweens.add({
+            targets: station,
+            x: {
+                from: station.x+Phaser.Math.Between(-2,2),
+                to: station.x
+            },
+            y: {
+                from: station.y+Phaser.Math.Between(-2,2),
+                to: station.y
+            },
+            repeat:2,
+            duration: 40
+        })
+    }
+
+    setSanity = (val:number) => {
+        val = Math.min(MAX_SANITY_PIXELS, val)
+        this.tweens.add({
+            targets: this.sanityBar,
+            height: val,
+            duration: 1000,
+            ease: 'Stepped',
+            easeParams: [3],
+            onUpdate: ()=>{
+                this.sanityBar.setPosition(this.baseX, this.sanityBar.y)
             }
         })
+    }
+
+    tick = () => {
+        this.foodTimeout-=10
+        if(this.foodTimeout <= 0) this.foodTimeout = 0
+        let t = this.timers.find(t=>t.activity === Activities.FOOD)
+        t.setOverlayPercent(this.foodTimeout/100)
+
+        this.sleepTimeout-=10
+        if(this.sleepTimeout <= 0) this.sleepTimeout = 0
+        t = this.timers.find(t=>t.activity === Activities.SLEEP)
+        t.setOverlayPercent(this.sleepTimeout/100)
+
+        this.entertainmentTimeout-=10
+        if(this.entertainmentTimeout <= 0) this.entertainmentTimeout = 0
+        t = this.timers.find(t=>t.activity === Activities.ENTER)
+        t.setOverlayPercent(this.entertainmentTimeout/100)
+
+        this.workTimeout-=10
+        if(this.workTimeout <= 0) this.workTimeout = 0
+        t = this.timers.find(t=>t.activity === Activities.WORK)
+        t.setOverlayPercent(this.workTimeout/100)
+
+        if(this.sanityBar.height > 5){
+            this.sanityBar.height-=5
+            this.sanityBar.setPosition(this.sanityBar.x-2.5, this.sanityBar.y)
+            this.emote.setFrame(getEmoteSanity(this.sanityBar.height))
+        }
     }
 
     setSelectIconPosition(tuple:Tuple){

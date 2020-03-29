@@ -23,10 +23,24 @@ export enum Difficulty {
     HARD='hard'
 }
 
+export enum Activities {
+    WORK='work',
+    ENTER='entertainment',
+    SLEEP='sleep',
+    FOOD='food'
+}
+
 export enum Modal {
     HELP='halp',
     LOSE='lose',
     WIN='win'
+}
+
+export const StationOffsets = {
+    [Activities.FOOD]: {x:-16, y:0},
+    [Activities.ENTER]: {x:0, y:30},
+    [Activities.SLEEP]: {x:+16, y:16},
+    [Activities.WORK]: {x:0,y:32}
 }
 
 export const Items = {
