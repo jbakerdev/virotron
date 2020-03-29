@@ -1,8 +1,8 @@
 import { Scene, GameObjects, Tilemaps, Geom } from "phaser";
-import { store } from "../../../App";
-import { defaults, Sprites } from '../../../assets/Assets'
-import { Modal, UIReducerActions, StaticLayers } from "../../../enum";
-import { onLose, onWin, onUpdateActivePlayer, onUpdatePlayer } from "../../uiManager/Thunks"
+import { store } from "../../App";
+import { defaults, Sprites } from '../../assets/Assets'
+import { Modal, UIReducerActions, StaticLayers } from "../../enum";
+import { onLose, onWin, onUpdateActivePlayer, onUpdatePlayer } from "../uiManager/Thunks"
 
 const TILE_WIDTH = 16
 
@@ -10,7 +10,8 @@ export default class RoomScene extends Scene {
 
     unsubscribeRedux: Function
     selectIcon: GameObjects.Image
-    selectedTile: Tilemaps.Tile
+    selectedStation: number
+    selectedLabel: GameObjects.Text
     sounds: any
     stations: Array<GameObjects.Sprite>
     map:Tilemaps.Tilemap
@@ -55,58 +56,58 @@ export default class RoomScene extends Scene {
         this.map = this.make.tilemap({ key: 'map'})
         let tileset = this.map.addTilesetImage('tiles', 'TILESET')
         
-        let h = (this.game.canvas.height - this.map.heightInPixels) / 4
-        let w = (this.game.canvas.width - this.map.widthInPixels) / 4
-        this.backgroundLayer = this.map.createStaticLayer('background', tileset, w, h)
-        let stations = this.map.createStaticLayer('stations', tileset, w, h)
+        let floor = this.map.createStaticLayer('floors', tileset)
+        this.map.createStaticLayer('walls', tileset)
+        let stations = this.map.createStaticLayer('objects', tileset)
         stations.forEachTile(t=>{
             let tile = t as Tilemaps.Tile
-            tile.alpha = 0
-            switch(tile.index){
+            switch(tile.index-1){
                 case Sprites.food: 
-                    let btn = this.add.sprite(tile.getCenterX(), tile.getCenterY(), 'tiles', Sprites.button).setInteractive()
-                    this.add.text(btn.getCenter().x, btn.getCenter().y, 'Meld')
-                    btn.on('pointerdown', this.meldItems)
+                    tile.alpha = 0
+                    this.stations.push(this.add.sprite(tile.getCenterX(), tile.getCenterY(), 'sprites', Sprites.food).setInteractive().setName('food'))
                     break
                 case Sprites.work:
-                    this.researchSprite = this.add.tileSprite(tile.getCenterX(), tile.getCenterY(), 16, 16, 'tiles', Sprites.research).setInteractive()
+                    tile.alpha = 0
+                    this.stations.push(this.add.sprite(tile.getCenterX(), tile.getCenterY(), 'sprites', Sprites.work).setInteractive().setName('work'))
                     break
                 case Sprites.entertainment:
-                    let slot = this.add.sprite(tile.getCenterX(), tile.getCenterY(), 'tiles', Sprites.openSlot).setInteractive()
-                    slot.on('pointerdown', ()=>onSelectSlot(this.slots.length))
-                    this.slots.push(slot)
+                    tile.alpha = 0
+                    this.stations.push(this.add.sprite(tile.getCenterX(), tile.getCenterY(), 'sprites', Sprites.entertainment).setInteractive().setName('entertainment'))
                     break
                 case Sprites.sleep:
-                    let locked = this.add.sprite(tile.getCenterX(), tile.getCenterY(), 'tiles', Sprites.lockedSlot)
-                    this.slots.push(locked)
+                    tile.alpha = 0
+                    this.stations.push(this.add.sprite(tile.getCenterX(), tile.getCenterY(), 'sprites', Sprites.sleep).setInteractive().setName('sleep'))
                     break
             }
         })
-
-        this.selectedTile = this.backgroundLayer.getTileAt(Math.round(this.map.width/2), Math.round(this.map.height/2))
-        this.setSelectIconPosition({x:this.selectedTile.getCenterX(), y: this.selectedTile.getCenterY()})
+        this.selectedStation = 0
+        this.setSelectIconPosition(this.stations[this.selectedStation].getCenter())
+        this.selectedLabel = this.add.text(0, -20, this.stations[this.selectedStation].name, 
+        { color:'white' }
+        )
         
-        this.cameras.main.setZoom(1.25)
-        this.cameras.main.setBounds(0, 0, this.map.widthInPixels, this.map.heightInPixels)
-        this.cameras.main.setScroll(this.map.widthInPixels/2, this.map.heightInPixels/2)
+        this.cameras.main.setZoom(2)
+        this.cameras.main.centerOn(floor.getBottomRight().x, floor.getBottomRight().y)
         
         this.input.keyboard.on('keydown-LEFT', (event) => {
-            let targetTile = this.getNextStation(1)
-            targetTile && this.setSelectIconPosition(targetTile)
+            this.selectedStation = (this.selectedStation-1)%this.stations.length
+            this.selectedLabel.text = this.stations[this.selectedStation].name
+            this.setSelectIconPosition(this.stations[this.selectedStation].getCenter())
         })
         this.input.keyboard.on('keydown-RIGHT', (event) => {
-            let targetTile = this.getNextStation(-1)
-            targetTile && this.setSelectIconPosition(targetTile)
+            this.selectedStation = (this.selectedStation+1)%this.stations.length
+            this.selectedLabel.text = this.stations[this.selectedStation].name
+            this.setSelectIconPosition(this.stations[this.selectedStation].getCenter())
         })
         this.input.keyboard.on('keydown-SPACE', (event) => {
-            this.tryUseSelectedStation()
+            //this.tryUseSelectedStation()
         })
         this.input.mouse.disableContextMenu()
     }
 
     setSelectIconPosition(tuple:Tuple){
         if(!this.selectIcon){
-            this.selectIcon = this.add.image(this.selectedTile.pixelX, this.selectedTile.pixelY, 'selected').setDepth(2).setScale(0.5)
+            this.selectIcon = this.add.image(tuple.x, tuple.y, 'selected').setDepth(2).setScale(0.5)
             this.add.tween({
                 targets: this.selectIcon,
                 scale: 1,
@@ -142,9 +143,5 @@ export default class RoomScene extends Scene {
                 this.messages = this.messages.filter(f=>f.alpha > 0)
             }
         })
-    }
-
-    update(){
-        
     }
 }
